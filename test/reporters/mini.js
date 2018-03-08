@@ -12,7 +12,7 @@ const run = type => t => {
 
 	const tty = new TTYStream({
 		columns: 200,
-		sanitizers: [report.sanitizers.cwd, report.sanitizers.posix, report.sanitizers.stacks, report.sanitizers.unreliableProcessIO]
+		sanitizers: [report.sanitizers.cwd, report.sanitizers.posix, report.sanitizers.stacks]
 	});
 	const reporter = new MiniReporter({
 		spinner: {
@@ -29,7 +29,7 @@ const run = type => t => {
 			tty.end();
 			return tty.asBuffer();
 		})
-		.then(buffer => report.assert(t, logFile, buffer));
+		.then(buffer => report.assert(t, logFile, buffer, false));
 };
 
 test('mini reporter - regular run', run('regular'));
