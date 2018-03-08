@@ -26,7 +26,7 @@ exports.assert = (t, logFile, buffer) => {
 		existing = buffer;
 	}
 
-	t.is(buffer.toString('utf8'), existing.toString('utf8'));
+	t.is(buffer.toString('utf8'), exports.sanitizers.unreliableProcessIO(existing.toString('utf8')));
 };
 
 exports.sanitizers = {
@@ -34,7 +34,17 @@ exports.sanitizers = {
 	posix: str => replaceString(str, '\\', '/'),
 	slow: str => str.replace(/(slow.+?)\(\d+m?s\)/g, '$1 (000ms)'),
 	// TODO: Remove when Node.js 4 support is dropped
-	stacks: str => str.replace(/(\[90m|')t \((.+?\.js:\d+:\d+)\)/g, '$1$2').replace(/null\._onTimeout/g, 'Timeout.setTimeout')
+	stacks: str => str.replace(/(\[90m|')t \((.+?\.js:\d+:\d+)\)/g, '$1$2').replace(/null\._onTimeout/g, 'Timeout.setTimeout'),
+	// At least in Appveyor with Node.js 6, IPC can overtake stdout/stderr. This
+	// causes the reporter to emit in a different order, resulting in a test
+	// failure. "Fix" by not asserting on the stdout/stderr reporting at all.
+	unreliableProcessIO(str) {
+		if (process.platform !== 'win32' || parseInt(process.versions.node, 10) >= 8) {
+			return str;
+		}
+
+		return replaceString(replaceString(str, '---tty-stream-chunk-separator\nstdout\n'), '---tty-stream-chunk-separator\nstderr\n');
+	}
 };
 
 const run = (type, reporter) => {
