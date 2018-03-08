@@ -6,15 +6,30 @@ const globby = require('globby');
 const proxyquire = require('proxyquire');
 const replaceString = require('replace-string');
 
-const Api = proxyquire('../../api', {
-	'./lib/fork': proxyquire('../../lib/fork', {
-		child_process: Object.assign({}, childProcess, { // eslint-disable-line camelcase
-			fork(filename, argv, options) {
-				return childProcess.fork(path.join(__dirname, 'report-worker.js'), argv, options);
-			}
-		})
-	})
-});
+let _Api = null;
+const createApi = options => {
+	if (!_Api) {
+		_Api = proxyquire('../../api', {
+			'./lib/fork': proxyquire('../../lib/fork', {
+				child_process: Object.assign({}, childProcess, { // eslint-disable-line camelcase
+					fork(filename, argv, options) {
+						return childProcess.fork(path.join(__dirname, 'report-worker.js'), argv, options);
+					}
+				})
+			})
+		});
+	}
+
+	return new _Api(options);
+};
+
+// At least in Appveyor with Node.js 6, IPC can overtake stdout/stderr
+let hasReliableStdIO = true;
+exports.captureStdIOReliability = () => {
+	if (process.platform === 'win32' && parseInt(process.versions.node, 10) < 8) {
+		hasReliableStdIO = false;
+	}
+};
 
 exports.assert = (t, logFile, buffer, stripStdIO) => {
 	let existing = null;
@@ -30,7 +45,7 @@ exports.assert = (t, logFile, buffer, stripStdIO) => {
 	// At least in Appveyor with Node.js 6, IPC can overtake stdout/stderr. This
 	// causes the reporter to emit in a different order, resulting in a test
 	// failure. "Fix" by not asserting on the stdout/stderr reporting at all.
-	if (stripStdIO && process.platform === 'win32' && parseInt(process.versions.node, 10) < 8) {
+	if (stripStdIO && !hasReliableStdIO) {
 		expected = expected.replace(/---tty-stream-chunk-separator\n(stderr|stdout)\n/g, '');
 	}
 	t.is(buffer.toString('utf8'), expected);
@@ -46,18 +61,14 @@ exports.sanitizers = {
 	// causes the reporter to emit in a different order, resulting in a test
 	// failure. "Fix" by not asserting on the stdout/stderr reporting at all.
 	unreliableProcessIO(str) {
-		if (process.platform !== 'win32' || parseInt(process.versions.node, 10) >= 8) {
-			return str;
-		}
-
-		return str === 'stdout\n' || str === 'stderr\n' ? '' : str;
+		return !hasReliableStdIO && (str === 'stdout\n' || str === 'stderr\n') ? '' : str;
 	}
 };
 
 const run = (type, reporter) => {
 	const projectDir = path.join(__dirname, '../fixture/report', type.toLowerCase());
 
-	const api = new Api({
+	const api = createApi({
 		failFast: type === 'failFast' || type === 'failFast2',
 		failWithoutAssertions: false,
 		serial: type === 'failFast' || type === 'failFast2',

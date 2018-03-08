@@ -1,4 +1,5 @@
 'use strict';
+require('../helper/report').captureStdIOReliability();
 require('../helper/fix-reporter-env')();
 
 const path = require('path');
