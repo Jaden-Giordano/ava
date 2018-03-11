@@ -112,6 +112,7 @@ babelConfigHelper.build(process.cwd(), cacheDir, babelConfigHelper.validate(conf
 		runStatus.observeWorker({
 			file,
 			onStateChange(listener) {
+				const emit = evt => listener(Object.assign(evt, {testFile: file}));
 				process.send = data => {
 					if (data && data.ava) {
 						const evt = data.ava;
@@ -121,9 +122,9 @@ babelConfigHelper.build(process.cwd(), cacheDir, babelConfigHelper.validate(conf
 							}
 
 							if (process.exitCode) {
-								listener({type: 'worker-failed', nonZeroExitCode: process.exitCode});
+								emit({type: 'worker-failed', nonZeroExitCode: process.exitCode});
 							} else {
-								listener({type: 'worker-finished', forcedExit: false});
+								emit({type: 'worker-finished', forcedExit: false});
 								process.exitCode = runStatus.suggestExitCode({matching: false});
 							}
 
@@ -132,7 +133,7 @@ babelConfigHelper.build(process.cwd(), cacheDir, babelConfigHelper.validate(conf
 								process.emit('message', {ava: {type: 'pong'}});
 							});
 						} else {
-							listener(data.ava);
+							emit(data.ava);
 						}
 					}
 				};
