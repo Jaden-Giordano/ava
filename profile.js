@@ -110,6 +110,7 @@ babelConfigHelper.build(process.cwd(), cacheDir, babelConfigHelper.validate(conf
 
 		const runStatus = new RunStatus([file]);
 		runStatus.observeWorker({
+			file,
 			onStateChange(listener) {
 				process.send = data => {
 					if (data && data.ava) {
